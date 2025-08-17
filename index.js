@@ -3,20 +3,19 @@ const axios = require("axios");
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.get("/api/taazabull", async (req, res) => {
+// GET /api/download?q=<hubdrive_url>
+app.get("/api/download", async (req, res) => {
   const fileUrl = req.query.q;
   if (!fileUrl) return res.status(400).json({ error: "Missing URL parameter" });
 
   try {
-    const urlObj = new URL(fileUrl);
-    const fileId = urlObj.searchParams.get("id");
-    if (!fileId) return res.status(400).json({ error: "Invalid Taazabull24 URL" });
+    const match = fileUrl.match(/file\/(\d+)/);
+    if (!match) return res.status(400).json({ error: "Invalid HubDrive URL" });
 
-    // Update this endpoint based on actual DevTools observation
-    const endpoint = "https://taazabull24.com/ajax.php?ajax=download-file"; 
+    const fileId = match[1];
 
     const response = await axios.post(
-      endpoint,
+      "https://hubdrive.space/ajax.php?ajax=direct-download",
       new URLSearchParams({ id: fileId }).toString(),
       {
         headers: {
@@ -28,19 +27,10 @@ app.get("/api/taazabull", async (req, res) => {
       }
     );
 
-    const data = response.data;
-
-    if (data && data.code === "200" && data.data?.gd) {
-      res.json({ gd: data.data.gd });
-    } else {
-      res.status(400).json({ error: "Failed to get direct download URL", details: data });
-    }
-
+    res.json(response.data); // full JSON including direct download link
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Taazabull24 download API running at http://localhost:${port}`);
-});
+app.listen(port, () => console.log(`HubDrive API running on port ${port}`));
