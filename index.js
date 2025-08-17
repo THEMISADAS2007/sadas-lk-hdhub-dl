@@ -3,8 +3,7 @@ const axios = require("axios");
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Example usage:
-// GET http://localhost:3000/api/download?q=<file_url>
+// Universal download API
 app.get("/api/download", async (req, res) => {
   const fileUrl = req.query.q;
   if (!fileUrl) return res.status(400).json({ error: "Missing URL parameter" });
@@ -30,7 +29,9 @@ app.get("/api/download", async (req, res) => {
       return res.status(400).json({ error: "Unsupported URL" });
     }
 
-    // Make POST request to the correct endpoint
+    console.log("Requesting endpoint:", endpoint);
+    console.log("File ID:", fileId);
+
     const response = await axios.post(
       endpoint,
       new URLSearchParams({ id: fileId }).toString(),
@@ -40,17 +41,27 @@ app.get("/api/download", async (req, res) => {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
           "X-Requested-With": "XMLHttpRequest",
           "Referer": referer
-        }
+        },
+        validateStatus: false // Prevent axios from throwing on 404
       }
     );
 
+    if (response.status === 404) {
+      return res.status(404).json({ error: "Endpoint not found (404)", endpoint, fileId });
+    }
+
     const data = response.data;
 
-    // Return only direct download URL
-    if (data.code === "200" && data.data?.gd) {
+    if (data && data.code === "200" && data.data?.gd) {
       res.json({ gd: data.data.gd });
     } else {
-      res.status(400).json({ error: "Failed to get direct download URL", details: data });
+      res.status(400).json({ 
+        error: "Failed to get direct download URL", 
+        status: response.status,
+        details: data,
+        endpoint,
+        fileId
+      });
     }
 
   } catch (err) {
