@@ -3,34 +3,61 @@ const axios = require("axios");
 const app = express();
 const port = process.env.PORT || 3000;
 
-// GET /api/download?q=<hubdrive_url>
+// Example usage:
+// GET http://localhost:3000/api/download?q=<file_url>
 app.get("/api/download", async (req, res) => {
   const fileUrl = req.query.q;
   if (!fileUrl) return res.status(400).json({ error: "Missing URL parameter" });
 
   try {
-    const match = fileUrl.match(/file\/(\d+)/);
-    if (!match) return res.status(400).json({ error: "Invalid HubDrive URL" });
+    let endpoint = "";
+    let fileId = "";
+    let referer = fileUrl;
 
-    const fileId = match[1];
+    if (fileUrl.includes("hubdrive.space")) {
+      const match = fileUrl.match(/file\/(\d+)/);
+      if (!match) return res.status(400).json({ error: "Invalid HubDrive URL" });
+      fileId = match[1];
+      endpoint = "https://hubdrive.space/ajax.php?ajax=direct-download";
 
+    } else if (fileUrl.includes("taazabull24.com")) {
+      const urlObj = new URL(fileUrl);
+      fileId = urlObj.searchParams.get("id");
+      if (!fileId) return res.status(400).json({ error: "Invalid Taazabull24 URL" });
+      endpoint = "https://taazabull24.com/ajax.php?ajax=direct-download";
+
+    } else {
+      return res.status(400).json({ error: "Unsupported URL" });
+    }
+
+    // Make POST request to the correct endpoint
     const response = await axios.post(
-      "https://hubdrive.space/ajax.php?ajax=direct-download",
+      endpoint,
       new URLSearchParams({ id: fileId }).toString(),
       {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
           "X-Requested-With": "XMLHttpRequest",
-          "Referer": fileUrl
+          "Referer": referer
         }
       }
     );
 
-    res.json(response.data); // full JSON including direct download link
+    const data = response.data;
+
+    // Return only direct download URL
+    if (data.code === "200" && data.data?.gd) {
+      res.json({ gd: data.data.gd });
+    } else {
+      res.status(400).json({ error: "Failed to get direct download URL", details: data });
+    }
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.listen(port, () => console.log(`HubDrive API running on port ${port}`));
+app.listen(port, () => {
+  console.log(`Universal download API running at http://localhost:${port}`);
+});
